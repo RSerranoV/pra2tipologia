@@ -1,0 +1,1283 @@
+---
+title: "PRAC2-WINE"
+author: "Ram<c3><b3>n Serrano Valero"
+date: "30/5/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Sección 1
+
+## 1.Descripción del dataset. ¿Por qué es importante y qué pregunta/problema pretende responder?
+
+El dataset elegido es “Wine Quality”, que podemos encontrar en el repositorio Kaggle, en la ruta:
+https://www.kaggle.com/danielpanizzo/wine-quality?select=wineQualityWhites.csv
+
+Es un dataset que contiene propiedades fisicoquímicas de casi 5.000 de variantes de vino y su calidad. No se proporciona información sobre tipos de uva, marcas o precio de cada uno de los vinos. En este caso, existen dos datasets, uno para vino tinto y otro para vino blanco. Dado que el vino blanco tiene un mayor número de registros, será el que utilizaremos.
+
+Pretende resolver la cuestión de predecir la calidad de un vino, en base a sus propiedades fisicoquímicas, una mejor composición química, hace que un vino pueda ser mejor que otro.
+
+Exploración de los datos
+
+Hay 4.898 registros, con 13 columnas, de las cuales, 12 de ellas son propiedades fisicoquímicas de entrada numéricas, mientras que la treceava es la variable de salida que se corresponde con la puntuación de calidad obtenida para cada vino en base a sus propiedades.
+
+Entrada:
+
+•	X: Número de fila, aunque esta columna la eliminaremos, dado que no aporta.
+
+•	fixed acidity: La mayoría de los ácidos del vino, fijos o sin temprana evaporación. (g/dm3)
+
+•	volatile acidity: Cantidad de ácido acético, niveles altos pueden causar sabor avinagrado. (g/dm3)
+
+•	citric acid: Pequeñas cantidades de ácido cítrico, causa frescura y sabor al vino. (g/dm3)
+
+•	residual sugar: Cantidad de azucar sobrante tras la fermentación. (g/dm3)
+
+•	chlorides: Cantidad de sal en el vino. (g/dm3)
+
+•	free sulfur dioxide:  Dióxido de azufre libre, previene la formación microbiana. (mg/dm3)
+
+•	total sulfur dioxide: Cantidad liberada de dióxido de azufre, detectable por nariz (mg/dm3)
+
+•	density: Densidad del agua, en base a cantidad de alcohol y azúcar. (g/cm3)
+
+•	pH: PH del acido de 0 (muy ácido) a 14 (poco ácido)
+
+•	sulphates: Sulfato, aditivo que puede contribuir a niveles de dióxido de sulfato (g/dm3)
+
+•	alcohol: Porcentaje de alcohol del vino.
+
+Salida:
+
+•	quality: Calidad del vino del 0 al 10.
+
+
+Leemos los datos del csv, del dataset de Kaggle: https://www.kaggle.com/danielpanizzo/wine-quality
+
+Donde podemos observar los valores que adquieren cada una de las columnas. Son de tipo numerico.
+
+```{r}
+datos<-read.csv('datasets_3631_5794_wineQualityWhites.csv', header = TRUE, sep = ",", fill = TRUE)
+summary(datos)
+```
+
+# Sección 2
+
+## 2.Integración y selección de los datos de interés a analizar
+
+Disponiamos de dos datsets, no obstante nos hemos quedado con el dataset que contenia un mayor número de filas, el de vino blanco. Dado que la mayoría de columnas se corresponden con propiedades del vino, en forma de registros, nos deberemos quedar con ellas, para utilizarlos en la fase de análisis.
+
+Por tanto disponemos de 13 columnas, aunque nos quedaremos con 12 de estas que son las propiedades de los vinos y su calidad, quitando la que no nos interesa, es decir, el número de fila:
+
+```{r}
+white_wine_data<-datos[,2:13]
+head(white_wine_data)
+```
+
+Otra modificación que realizaremos es introducir una columna categórica que aglutine a los vinos como Buenos,Normales y Malos. Esta nueva columna será category.
+
+Categorizamos los vinos en base a su puntuación, de tal forma que:
+
+•	Vino Malo: Puntuación Inferior a 5. [<5]
+
+•	Vino Normal: Puntuación Igual o superior a 5 e inferior o igual a 7. [5,7]
+
+•	Vino Bueno: Puntuación Superior a 7. [>7]
+
+```{r}
+#Creamos la nueva columna
+white_wine_data["category"]<-NA
+
+#Categorizamos que un vino es malo si su puntuación es inferior a 5
+white_wine_data[white_wine_data$quality<5,]$category='Malo'
+#Categorizamos que un vino es normal si su puntuación se encuentra entre 5 y 7
+white_wine_data[white_wine_data$quality>=5 & white_wine_data$quality<=7,]$category='Normal'
+#Categorizamos que un vino es bueno si su puntuación es superior a 7
+white_wine_data[white_wine_data$quality>7,]$category='Bueno'
+
+head(white_wine_data)
+```
+
+Finalmente transformamos la columna en categórica.
+
+```{r}
+white_wine_data$category<-as.factor(white_wine_data$category)
+str(white_wine_data)
+```
+
+# Sección 3
+
+## 3. Limpieza de los datos.
+
+Tipo de dato asignado a cada campo, se corresponde con el dominio de estos.
+
+```{r}
+# Tipo de dato asignado a cada campo
+sapply(white_wine_data, function(x) class(x))
+```
+
+### 3.1.a) ¿Los datos contienen ceros o elementos vacíos? 
+
+Realizar un analisis de los datos de calidad, debemos realizar la comprobación de valores perdidos y detectar los outliers en caso de que los haya. Para ello, primero buscaremos posibles valores perdidos y los outliers.
+Posteriormente realizaremos un analisis Multivariante, visualizando los datos de forma gráfica de relaciones entre variables.
+
+Comprobamos los **nulos** de cada columna:
+
+Número de nulos para fixed.acidity: `r sum(is.na(white_wine_data$fixed.acidity))`
+
+Número de nulos para volatile.acidity: `r sum(is.na(white_wine_data$volatile.acidity))`
+
+Número de nulos para citric.acid: `r sum(is.na(white_wine_data$citric.acid))`
+
+Número de nulos para residual.sugar: `r sum(is.na(white_wine_data$residual.sugar))`
+
+Número de nulos para chlorides: `r sum(is.na(white_wine_data$chlorides))`
+
+Número de nulos para free.sulfur.dioxide: `r sum(is.na(white_wine_data$free.sulfur.dioxide))`
+
+Número de nulos para total.sulfur.dioxide: `r sum(is.na(white_wine_data$total.sulfur.dioxide))`
+
+Número de nulos para density: `r sum(is.na(white_wine_data$density))`
+
+Número de nulos para pH: `r sum(is.na(white_wine_data$pH))`
+
+Número de nulos para sulphates: `r sum(is.na(white_wine_data$sulphates))`
+
+Número de nulos para quality: `r sum(is.na(white_wine_data$quality))`
+
+Número de nulos para category: `r sum(is.na(white_wine_data$category))`
+
+Podemos inferir que no hay valores vacios en los datos, en cuanto a nulos.
+
+
+Procedemos a verificar si hay valores con valor 0, comprobamos los **ceros** de cada columna:
+
+Número de ceros para fixed.acidity: `r sum(white_wine_data$fixed.acidity == 0)`
+
+Número de ceros para volatile.acidity: `r sum(white_wine_data$volatile.acidity == 0)`
+
+Número de ceros para citric.acid: `r sum(white_wine_data$citric.acid == 0)`
+
+Número de ceros para residual.sugar: `r sum(white_wine_data$residual.sugar == 0)`
+
+Número de ceros para chlorides: `r sum(white_wine_data$chlorides == 0)`
+
+Número de ceros para free.sulfur.dioxide: `r sum(white_wine_data$free.sulfur.dioxide == 0)`
+
+Número de ceros para total.sulfur.dioxide: `r sum(white_wine_data$total.sulfur.dioxide == 0)`
+
+Número de ceros para density: `r sum(white_wine_data$density == 0)`
+
+Número de ceros para pH: `r sum(white_wine_data$pH == 0)`
+
+Número de ceros para sulphates: `r sum(white_wine_data$sulphates == 0)`
+
+Número de ceros para quality: `r sum(white_wine_data$quality == 0)`
+
+Número de ceros para category: `r sum(white_wine_data$category == 0)`
+
+Vemos que únicamente hay `r sum(white_wine_data$citric.acid == 0)` valores 0 para la columna de cantidad de gramos de ácido cítrico, no obstante, este valor 0 forma parte del **dominio del atributo**. Por lo tanto, es posible que un vino no disponga de ácido cítrico, por tanto su valor numérico 0 tiene sentido. Siendo su valor comprendido entre [`r min(white_wine_data$citric.acid)`,`r max(white_wine_data$citric.acid)`]. No os valores muy altos, por lo que la cantidad de gramos de cítricos que posee un vino no suele ser superior a `r max(white_wine_data$citric.acid)` y su valor medio suele ser `r mean(white_wine_data$citric.acid)`
+
+
+```{r}
+summary(white_wine_data)
+```
+
+### 3.1.b) ¿Cómo gestionarías cada uno de estos casos?
+
+No disponiamos de ningun valor perdido, así que simulemos que teniamos varios valores perdidos en las 5 primeras filas de la columna citric.acid:
+
+```{r}
+white_wine_data_lost<-white_wine_data
+#Eliminamos los valores
+white_wine_data_lost[0:5,]$citric.acid<-NA
+```
+
+Si hubieramos obtenido algún valor perdido, podríamos haber optado por varias opciones:
+
+•	Reemplazo manual: Si conocemos la información perdida y podemos corregirlo y supone una inversión de tiempo aceptable, podemos cambiar manualmente el valor.
+
+```{r}
+white_wine_data_lost[1,]$citric.acid<-0.36
+white_wine_data_lost[2,]$citric.acid<-0.34
+white_wine_data_lost[3,]$citric.acid<-0.40
+white_wine_data_lost[4,]$citric.acid<-0.32
+white_wine_data_lost[5,]$citric.acid<-0.32
+
+white_wine_data_lost[0:5,]
+```
+
+•	Reemplazo por constante: Podemos reemplazar el valor perdido por una misma constante, para agrupar dichos valores en un mismo conjunto de valores desconocidos. Para el mismo ejemplo de valores perdidos de acido cítrico anterior, reemplazamos por valor -1 todos los valores.
+
+```{r}
+#Eliminamos los valores
+white_wine_data_lost[0:5,]$citric.acid<-NA
+#Asignamos mismo valor al valor perdido
+white_wine_data_lost[is.na(white_wine_data_lost$citric.acid),]$citric.acid<--1
+white_wine_data_lost[0:5,]
+```
+
+•	Tendencia Central: Si se trata de un valor perdido categórico, podemos usar la moda, es decir el valor más repetido para dicho atributo. En caso de ser valor perdido numérico, empleamos la media o mediana para dicho atributo.
+
+```{r}
+#Eliminamos los valores
+white_wine_data_lost[0:5,]$citric.acid<-NA
+
+valor_medio_acido_citrico<-mean(white_wine_data_lost[!is.na(white_wine_data_lost$citric.acid),]$citric.acid)
+
+#Asignamos valor medio al valor perdido
+white_wine_data_lost[is.na(white_wine_data_lost$citric.acid),]$citric.acid<-valor_medio_acido_citrico
+white_wine_data_lost[0:5,]
+```
+
+•	KNN: K-Nearest Neighbours, que permite predecir valores en conjuntos de datos de valores discretos, continuos, ordinales y/o nominales. No obstante encontrar el valor K adecuado es el reto para la precisión. Utilizamos el paquete VIM de R, aplicamos kNN para obtener los valores perdidos, en base a una K=3 vecinos cercanos, en la columna citric.acid Donde vemos que resuelve los valores perdidos, obteniendo el mismo resultado que en otros ejemplos de este ejercicio.
+
+```{r}
+#Eliminamos los valores
+white_wine_data_lost[0:5,]$citric.acid<-NA
+#Cargamos libreria VIM
+library(VIM)
+#Aplicamos algoritmo KNN de vecinos cercanos con k=3
+white_wine_data_lost<-kNN(white_wine_data_lost, variable=c("citric.acid"), k=3)
+
+white_wine_data_lost[0:5,]
+```
+
+
+### 3.2. Identificación y tratamiento de valores extremos.
+
+Comprobemos si existen valores extremos en cada una de las variables:
+
+Empezamos por la acidez **fixed.acidity**, vemos que tenemos dos valores que se escapan del conjunto de datos. 
+
+```{r}
+
+boxplot(white_wine_data$fixed.acidity, main="fixed.acidity", boxwex=0.1)
+boxplot.stats(white_wine_data$fixed.acidity)$out
+
+extremos_acidez<-tail(sort(boxplot.stats(white_wine_data$fixed.acidity)$out),2)
+```
+
+Estos son `r extremos_acidez`, procedemos a eliminarlos, dado que son solo 2 valores.
+
+```{r}
+white_wine_data<-white_wine_data[white_wine_data$fixed.acidity<min(extremos_acidez),]
+boxplot(white_wine_data$fixed.acidity, main="fixed.acidity", boxwex=0.1)
+```
+
+
+Continuamos por la acidez volátil **volatile.acidity**, vemos que tenemos dos valores que se escapan del conjunto de datos, pero en esta ocasión, parece ser un exceso de g/dm3 de acidez volatil, dado que los valores estan muy próximos a otros como `r tail(sort(boxplot.stats(white_wine_data$volatile.acidity)$out),5)`, por lo tanto no debemos tratar valores extremos en este caso.
+
+Esto puede significar que aunque el groso de los valores se encuentre entre 0.2 y 0.4, puede que haya otros valores que estan agrupados en otros niveles de acidez.
+
+```{r}
+
+boxplot(white_wine_data$volatile.acidity, main="volatile.acidity", boxwex=0.1)
+boxplot.stats(white_wine_data$volatile.acidity)$out
+
+```
+
+Continuamos por el ácido cítrico **citric.acid**, vemos que hay algun valor que se sale del conjunto de valores, por ser un valor mas alto que el resto.
+
+```{r}
+
+boxplot(white_wine_data$citric.acid, main="citric.acid", boxwex=0.1)
+boxplot.stats(white_wine_data$citric.acid)$out
+extremos_citrico<-max(boxplot.stats(white_wine_data$citric.acid)$out)
+```
+
+Estos son `r extremos_citrico`, procedemos a eliminarlo, dado que es únicamente 1 valor.
+
+```{r}
+white_wine_data<-white_wine_data[white_wine_data$citric.acid<min(extremos_citrico),]
+boxplot(white_wine_data$citric.acid, main="citric.acid", boxwex=0.1)
+```
+
+
+Continuamos por el azucar residual **residual.sugar**, vemos que hay algun valor que se sale del conjunto de valores, por ser un valor mas alto que el resto.
+
+```{r}
+
+boxplot(white_wine_data$residual.sugar, main="residual.sugar", boxwex=0.1)
+boxplot.stats(white_wine_data$residual.sugar)$out
+
+extremos_sugar<-max(boxplot.stats(white_wine_data$residual.sugar)$out)
+```
+
+Estos son `r extremos_sugar`, procedemos a eliminarlo, dado que es únicamente 1 valor.
+
+```{r}
+white_wine_data<-white_wine_data[white_wine_data$residual.sugar<min(extremos_sugar),]
+boxplot(white_wine_data$residual.sugar, main="residual.sugar", boxwex=0.1)
+```
+
+Continuamos por la cantidad de sal **chlorides**, vemos que hay algun valor que se sale del conjunto de valores, pero no excesivamente, por lo que puede no ser un valor extremo, sino un indice alto de sal.
+
+```{r}
+
+boxplot(white_wine_data$chlorides, main="chlorides", boxwex=0.1)
+boxplot.stats(white_wine_data$chlorides)$out
+```
+
+
+Proseguimos por la cantidad libre de dióxido de sulfuro **free.sulfur.dioxide**, vemos que hay algun valor que se sale del conjunto de valores.
+
+```{r}
+
+boxplot(white_wine_data$free.sulfur.dioxide, main="free.sulfur.dioxide", boxwex=0.1)
+boxplot.stats(white_wine_data$free.sulfur.dioxide)$out
+
+extremos_sulfurdioxide<-max(boxplot.stats(white_wine_data$free.sulfur.dioxide)$out)
+```
+
+
+
+Estos son `r extremos_sulfurdioxide`, procedemos a eliminarlo, dado que es únicamente 1 valor.
+
+```{r}
+white_wine_data<-white_wine_data[white_wine_data$free.sulfur.dioxide<min(extremos_sulfurdioxide),]
+boxplot(white_wine_data$free.sulfur.dioxide, main="free.sulfur.dioxide", boxwex=0.1)
+```
+
+Proseguimos por la cantidad total de dióxido de sulfuro **total.sulfur.dioxide**, vemos que hay algun valor que se sale del conjunto de valores, pero no los vamos a eliminar, dado a que hay algunos valores que tambien se aproximan a dichos valores.
+
+```{r}
+
+boxplot(white_wine_data$total.sulfur.dioxide, main="total.sulfur.dioxide", boxwex=0.1)
+boxplot.stats(white_wine_data$total.sulfur.dioxide)$out
+
+extremos_total_sulfurdioxide<-tail(sort(boxplot.stats(white_wine_data$total.sulfur.dioxide)$out))
+```
+
+Proseguimos por la densidad **density**, vemos que hay algun valor que se sale del rango de valores.
+
+```{r}
+
+boxplot(white_wine_data$density, main="density", boxwex=0.1)
+boxplot.stats(white_wine_data$density)$out
+
+extremos_density<-tail(sort(boxplot.stats(white_wine_data$density)$out))
+```
+
+
+Estos son `r extremos_density`, procedemos a eliminarlo, dado que son pocos valores.
+
+```{r}
+white_wine_data<-white_wine_data[white_wine_data$density<min(extremos_density),]
+boxplot(white_wine_data$density, main="density", boxwex=0.1)
+```
+
+
+Proseguimos por el ph **pH**, vemos que hay algun valor que no está donde la nube de puntos media, pero si esta dentro de los valores posibles del ph entre 0 y 14. Por lo que no eliminaremos ningun valor.
+
+```{r}
+
+boxplot(white_wine_data$pH, main="pH", boxwex=0.1)
+boxplot.stats(white_wine_data$pH)$out
+
+```
+
+Proseguimos por la cantidad de sulfatos **sulphates**, vemos que hay algun valor que no está donde la nube de puntos media, no obstante no parece ser un outlier, ya que hay otros puntos cercanos a este.
+
+```{r}
+
+boxplot(white_wine_data$sulphates, main="sulphates", boxwex=0.1)
+boxplot.stats(white_wine_data$sulphates)$out
+
+```
+
+Comprobamos outliers en la cantidad de alcohol **alcohol** y vemos que no hay outliers
+
+```{r}
+
+boxplot(white_wine_data$alcohol, main="alcohol", boxwex=0.1)
+boxplot.stats(white_wine_data$alcohol)$out
+
+```
+
+Comprobamos outliers en la calidad **quality** y vemos que no hay outliers, dado que se encuentra dentro del rango de valores del 0 al 10.
+
+```{r}
+
+boxplot(white_wine_data$quality, main="quality", boxwex=0.1)
+boxplot.stats(white_wine_data$quality)$out
+
+```
+
+# Sección 4
+
+## 4. Análisis de los datos
+
+### 4.1. Selección de los grupos de datos que se quieren analizar/comparar (planificación de los análisis a aplicar).
+
+No hemos segmentado los datos en distintos tipos, dado que únicamente hemos tomado el dataset de vinos blancos, en lugar de combinar tintos y blancos, por tanto al trabajar únicamente con un tipo de vino, no segmentaremos los datos, ya que queremos emplear cada propiedad que atribuye a un vino su calidad.
+
+La planificación de análisis a realizar es ver si alguna de las propiedades del vino, es significativamente influyente para determinar la calidad del vino.
+
+Analizaremos por tanto la normalidad de los datos así como la relación que hay entre cada una de las variables, hasta obtener un modelo que nos permita determinar la calidad de estos vinos blancos.
+
+Empezamos por ver como se distribuyen los datos en la calidad:
+
+```{r}
+library(ggplot2)
+
+print(" Numero de vinos por su puntuacion:")
+table(white_wine_data$quality)
+ggplot(white_wine_data,aes(quality)) + geom_histogram(stat="count") +
+     xlab("Calidad del vino blanco") + ylab("Numero de vinos")
+```
+
+La calidad del vino está distribuida en ratios de vino pobre inferior a 5, vino normal [5,7] y vino bueno superior a 7.
+
+La calidad del vino sigue una distribución normal, en la que hay mas vinos que son de calidad normal, que superior o pésima.
+
+Comprobemos cual es por tanto la categoría global de los vinos blancos:
+
+```{r}
+
+print(" Numero de vinos por su categoría:")
+table(white_wine_data$category)
+ggplot(white_wine_data,aes(category)) + geom_histogram(stat="count") +
+     xlab("Categoria del vino blanco") + ylab("Numero de vinos")
+
+```
+
+Observamos que tenemos tantos vinos de mala calidad, como de buena calidad y el grueso de los vinos son vinos normales, lo cual tiene sentido, ya que la mayor parte de los vinos deberian acercarse a tener las mismas propiedades o muy cercanas, sin embargo los vinos buenos tengan alguna propiedad que varia y lo hace un mejor vino, con lo que quizas incluso su precio sea mayor.
+
+#### 4.1.a) Análisis Multivariante
+
+Utilizaremos un visual de cada variable contra la calidad, así como la correlación de Pearson, que son:
+- Correlación Débil  0.1<r<0.3
+- Correlación Moderada 0.3<r<0.5
+- Correlación Fuerte r>0.5
+
+Veamos como influye la variable **fixed.acidity** en la calidad del vino:
+
+```{r}
+library(ggplot2)
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = fixed.acidity)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,fixed.acidity),method='lm',color='yellow')+
+      xlab('quality')+ ylab('fixed.acidity') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs fixed.acidity')
+    
+```
+
+```{r}
+corr_quality_fixed_acidity<-cor.test(white_wine_data$quality,white_wine_data$fixed.acidity,method='pearson')
+corr_quality_fixed_acidity
+```
+
+Como podemos observar, la cantidad de **fixed.acidity** o acidez fija, no es un factor que tenga repercusión en la calidad del vino, dado que la calidad del vino no parece verse afectada por este factor, al permanecer los valores de acidez fija, cercanos a la media para cada tipo de calidad. Además su correlación es débil, teniendo un valor de `r corr_quality_fixed_acidity$estimate`, por lo que no parece que tenga mucha repercusión.
+
+
+Veamos como influye la variable **citric.acid** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = citric.acid)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,citric.acid),method='lm',color='yellow')+
+      xlab('quality')+ ylab('citric.acid') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs citric.acid')
+    
+```
+
+```{r}
+corr_quality_citric<-cor.test(white_wine_data$quality,white_wine_data$citric.acid,method='pearson')
+corr_quality_citric
+```
+
+Como podemos observar, la cantidad de **citric.acid** o citrico, tiene una correlación muy debil entre citrico y calidad, su correlacion es `r corr_quality_citric$estimate`, ademas el grueo de sus valores se encuentran entre 0.1 y 0.7.
+
+
+Veamos como influye la variable **residual.sugar** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = residual.sugar)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,residual.sugar),method='lm',color='yellow')+
+      xlab('quality')+ ylab('residual.sugar') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs residual.sugar')
+    
+```
+
+```{r}
+corr_quality_sugar<-cor.test(white_wine_data$quality,white_wine_data$residual.sugar,method='pearson')
+corr_quality_sugar
+```
+
+Como podemos observar, la cantidad de **residual.sugar**  tiene una correlación débil, es negativa, afectando minimamente a la calidad del vino,  su correlacion es `r corr_quality_sugar$estimate`, por lo que no es determinante para la calidad del vino.
+
+
+Veamos como influye la variable **volatile.acidity** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = volatile.acidity)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,volatile.acidity),method='lm',color='yellow')+
+      xlab('quality')+ ylab('volatile.acidity') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs volatile.acidity')
+    
+```
+
+
+
+```{r}
+corr_quality_volatile_acidity<-cor.test(white_wine_data$quality,white_wine_data$volatile.acidity,method='pearson')
+corr_quality_volatile_acidity
+```
+Como podemos observar, la cantidad de **volatile.acidity** o acidez volatil, no es un factor que tenga repercusión en la calidad del vino, dado que la calidad del vino no parece verse afectada por este factor, al permanecer los valores de acidez fija, cercanos a la media para cada tipo de calidad. Su correlación es débil `r corr_quality_volatile_acidity$estimate`.
+
+
+Veamos como influye la variable **chlorides** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = chlorides)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,chlorides),method='lm',color='yellow')+
+      xlab('quality')+ ylab('chlorides') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs chlorides')
+    
+```
+
+
+
+```{r}
+corr_quality_chlorides<-cor.test(white_wine_data$quality,white_wine_data$chlorides,method='pearson')
+corr_quality_chlorides
+```
+
+La cantidad de sal en vino **chlorides**, tambien tiene una correlación débil, siendo su valor `r corr_quality_chlorides$estimate` por lo que no se ve afectada por esta variable.
+
+
+Veamos como influye la variable **free.sulfur.dioxide** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = free.sulfur.dioxide)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,free.sulfur.dioxide),method='lm',color='yellow')+
+      xlab('quality')+ ylab('free.sulfur.dioxide') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs free.sulfur.dioxide')
+    
+```
+
+
+
+```{r}
+corr_quality_free_sulfur<-cor.test(white_wine_data$quality,white_wine_data$free.sulfur.dioxide,method='pearson')
+corr_quality_free_sulfur
+```
+
+La cantidad libre de dioxido de azufre en vino **free.sulfur.dioxide**, tambien tiene una correlación débil positiva, siendo su valor `r corr_quality_free_sulfur$estimate` por lo que no se ve afectada por esta variable.
+
+
+Veamos como influye la variable **total.sulfur.dioxide** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = total.sulfur.dioxide)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,total.sulfur.dioxide),method='lm',color='yellow')+
+      xlab('quality')+ ylab('total.sulfur.dioxide') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs total.sulfur.dioxide')
+    
+```
+
+
+
+```{r}
+corr_quality_total_sulfur<-cor.test(white_wine_data$quality,white_wine_data$total.sulfur.dioxide,method='pearson')
+corr_quality_total_sulfur
+```
+
+La cantidad total de dioxido de azufre en vino **total.sulfur.dioxide**, tambien tiene una correlación débil negativa, siendo su valor `r corr_quality_total_sulfur$estimate` por lo que no se ve afectada por esta variable.
+
+
+Veamos como influye la variable **density** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = density)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,density),method='lm',color='yellow')+
+      xlab('quality')+ ylab('density') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs density')
+    
+```
+
+
+
+```{r}
+corr_quality_density<-cor.test(white_wine_data$quality,white_wine_data$density,method='pearson')
+corr_quality_density
+```
+
+La densidad en vino **density**, tiene una correlación moderada negativa, siendo su valor `r corr_quality_density$estimate` por lo que SI se ve afectada por esta variable, aunque de manera moderada, cuanto menor densidad, mejor vino.
+
+
+Veamos como influye la variable **pH** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = pH)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,pH),method='lm',color='yellow')+
+      xlab('quality')+ ylab('pH') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs pH')
+    
+```
+
+
+
+```{r}
+corr_quality_pH<-cor.test(white_wine_data$quality,white_wine_data$pH,method='pearson')
+corr_quality_pH
+```
+
+La cantidad de ph en vino **pH**, tiene una correlación débil negativa, siendo su valor `r corr_quality_pH$estimate` por lo que no se ve afectada por esta variable, muy débilmente cuanto mayor ph, mejor vino, aunque no es relevante. Sus valores oscilan entre 3 y 3.4 por lo que hay muy poco margen de diferencia entre el ph de los vinos.
+
+
+Veamos como influye la variable **sulphates** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = sulphates)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,sulphates),method='lm',color='yellow')+
+      xlab('quality')+ ylab('sulphates') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs sulphates')
+    
+```
+
+
+
+```{r}
+corr_quality_sulphates<-cor.test(white_wine_data$quality,white_wine_data$sulphates,method='pearson')
+corr_quality_sulphates
+```
+
+La cantidad de sulfatos en vino **sulphates**, tiene una correlación muy débil negativa, siendo su valor `r corr_quality_sulphates$estimate` por lo que no se ve afectada por esta variable.
+
+
+Veamos como influye la variable **sulphates** en la calidad del vino:
+
+```{r}
+
+ggplot(data = white_wine_data, aes(x = factor(quality), y = alcohol)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,alcohol),method='lm',color='yellow')+
+      xlab('quality')+ ylab('alcohol') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs alcohol')
+    
+```
+
+
+
+```{r}
+corr_quality_alcohol<-cor.test(white_wine_data$quality,white_wine_data$alcohol,method='pearson')
+corr_quality_alcohol
+```
+
+La cantidad de sulfatos en vino **alcohol**, tiene una correlación moderada positiva, siendo su valor `r corr_quality_alcohol$estimate` por lo que SI se ve afectada por esta variable. A mayor cantidad de alcohol, mejora la calidad del vino, encontrando valores entre 9 y 13. Siendo para valores de vino muy bueno, valores superiores a 11 de cantidad de alcohol.
+
+### 4.2. Comprobación de la normalidad y homogeneidad de la varianza.
+
+Verificamos la normalidad sobre la calidad de los vinos disponibles.
+
+```{r}
+dnormal<-dnorm(white_wine_data$quality,mean(white_wine_data$quality),sd(white_wine_data$quality))
+plot(white_wine_data$quality,dnormal,type='p', col='blue',lwd=1)
+```
+
+Obtenemos la curva normal sobre el gráfico, para ver la distribución normal.
+
+```{r}
+x <- white_wine_data$quality
+h<-hist(x, col="red", xlab="Calidad del vino",main="Histograma con Curva Normal")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+```
+
+Obtenemos en gráfico de nube de puntos y recta, para ver como se distribuyen
+
+```{r}
+qqnorm( white_wine_data$quality ) # la nube de puntos
+qqline( white_wine_data$quality ) # la recta
+```
+
+La nube de puntos se aproxima a la recta, por tanto se trata de una distribución normal sobre la calidad.
+
+
+```{r}
+par(mfrow=c(2,2))
+for(i in 1:ncol(white_wine_data)) {
+  if (is.numeric(white_wine_data[,i])){
+    qqnorm(white_wine_data[,i],main = paste("Normal Q-Q Plot for ",colnames(white_wine_data)[i]))
+    qqline(white_wine_data[,i],col="red")
+    hist(white_wine_data[,i],
+    main=paste("Histogram for ", colnames(white_wine_data)[i]),
+    xlab=colnames(white_wine_data)[i], freq = FALSE)
+  }
+}
+```
+
+A simple vista, parece que las variables, siguen una distribución normal, no obstante para ver si las variables están normalizadas, utilizaremos el Test Shaphiro y validaremos si su valor p-valor es mayor que 0.05, de serlo, se aceptaría la hipótesis nula y las variables serian normalizadas.
+
+Asumiendo como hipótesis nula que la población está distribuida normalmente, si el p-valor es menor al nivel de significancia, generalmente alfa=0.05, entonces la hipótesis nula es rechazada y se concluye que los datos no cuentan con una distribución normal:
+
+Validamos fixed.acidity:
+```{r}
+shapiro.test(white_wine_data$fixed.acidity)
+```
+
+Validamos volatile.acidity:
+
+```{r}
+shapiro.test(white_wine_data$volatile.acidity)
+```
+
+Validamos citric.acid:
+
+```{r}
+shapiro.test(white_wine_data$citric.acid)
+```
+
+Validamos residual.sugar:
+
+```{r}
+shapiro.test(white_wine_data$residual.sugar)
+```
+
+Validamos chlorides:
+
+```{r}
+shapiro.test(white_wine_data$chlorides)
+```
+
+Validamos free.sulfur.dioxide:
+
+```{r}
+shapiro.test(white_wine_data$free.sulfur.dioxide)
+```
+
+Validamos total.sulfur.dioxide:
+
+```{r}
+shapiro.test(white_wine_data$total.sulfur.dioxide)
+```
+
+Validamos density:
+
+```{r}
+shapiro.test(white_wine_data$density)
+```
+
+Validamos pH:
+
+```{r}
+shapiro.test(white_wine_data$pH)
+```
+
+Validamos sulphates:
+
+```{r}
+shapiro.test(white_wine_data$sulphates)
+```
+
+Validamos alcohol:
+
+```{r}
+shapiro.test(white_wine_data$alcohol)
+```
+
+Validamos quality:
+
+```{r}
+shapiro.test(white_wine_data$quality)
+```
+
+Al aplicar el test de Shaphiro, ninguna de las variables nos retorna un valor superior al p-valor 0.05, por lo que se puede inferir que no son variables normalizadas. Aunque al tener mas de 30 registros, mediante el teorema de límite central se pueden aproximar a la normal.
+
+Siendo el **teorema central del límite**: se aplica a la distribución de la media de la muestra de un conjunto de datos. La media de una muestra de cualquier conjunto de datos es cada vez más normal a medida que aumenta la cantidad de observaciones. Así, a medida que aumenta el tamaño de la muestra N, la distribución de la media de la muestra se parece cada vez más a una distribución normal con una (verdadera) media de la población mu y varianza alpha2/N
+
+
+
+### 4.3. Aplicación de pruebas estadísticas para comparar los grupos de datos. En función de los datos y el objetivo del estudio, aplicar pruebas de contraste de hipótesis, correlaciones, regresiones, etc. Aplicar al menos tres métodos de análisis diferentes.
+
+#### 4.3.a) Correlación de las variables
+
+Visualizamos la correlación de las variables, para ello tomaremos las variables de tipo numérico, que son las que puede utilizar la función **cor** de R.
+
+```{r}
+library(corrplot)
+MatrizCorrelacion <- cor(white_wine_data[,0:12])
+corrplot(MatrizCorrelacion, method = "number")
+```
+
+De esta tabla, podemos inferir las siguientes relaciones entre variables:
+
+- Podemos observar como la calidad está algo relacionada con el alcohol con un 44% de correlación. Lo cual es interesante.
+- Además de estar relacionado el alcohol con la calidad, se ve también relacionado con la densidad. 78%
+- Siendo la densidad fuertemente relacionada con la cantidad de azucar residual. 84%
+- La cantidad libre de dióxido de azufre está fuertemente relacionada con la cantidad total de dióxido de azufre. 62%
+
+```{r}
+print(MatrizCorrelacion)
+```
+
+#### 4.3.b) Modelo de Regresión Lineal
+
+Para poder encontrar variables significativas, mejoraremos el modelo eliminando las variables que no tengan un fuerte significado para el análisis, verificandolo mediante valor de R-Cuadrado.
+
+
+```{r}
+# Splitting the data into Training and Testing sets
+library(caTools)
+set.seed(144)
+spl = sample.split(white_wine_data$quality, 0.7)
+train = subset(white_wine_data, spl == TRUE)
+test=subset(white_wine_data,spl==FALSE)
+```
+
+```{r}
+model1 <- lm(quality ~ .-category, data = train)
+summary(model1)
+```
+
+Obtenemos un modelo completo con todas las variables:
+
+```{r}
+m1<-lm(formula = white_wine_data$quality ~ white_wine_data$fixed.acidity + white_wine_data$volatile.acidity + 
+     white_wine_data$citric.acid + white_wine_data$residual.sugar + white_wine_data$chlorides + 
+     white_wine_data$free.sulfur.dioxide + white_wine_data$total.sulfur.dioxide + 
+     white_wine_data$density + white_wine_data$pH + white_wine_data$sulphates + white_wine_data$alcohol)
+summary(m1)
+```
+
+Esto nos da un R-cuadrado ajustado de 0.7466, de modo que ahora vamos a ir eliminando variables para ver con que modelo nos quedamos.
+
+Quitemos la cantidad de sal **chlorides**, que es el que mayor p-value **0.9225** tenia en el modelo anterior, a ver como afecta:
+
+```{r}
+m2<-lm(formula = white_wine_data$quality ~ white_wine_data$fixed.acidity + white_wine_data$volatile.acidity + 
+      + white_wine_data$residual.sugar  + white_wine_data$citric.acid +
+     white_wine_data$free.sulfur.dioxide + white_wine_data$total.sulfur.dioxide + 
+     white_wine_data$density + white_wine_data$pH + white_wine_data$sulphates + white_wine_data$alcohol)
+summary(m2)
+```
+
+Observamos que no se ve afectado el R-cuadrado ajustado, su valor 0.7465, por lo que podemos eliminar la variable.
+
+Quitemos la cantidad total de dioxido de azufre **total.sulfur.dioxide**, que tenia el mayor p-value **0.8510** del modelo anterior a ver como afecta:
+
+```{r}
+m3<-lm(formula = white_wine_data$quality ~ white_wine_data$fixed.acidity + white_wine_data$volatile.acidity + 
+      + white_wine_data$residual.sugar  + white_wine_data$citric.acid +
+     white_wine_data$free.sulfur.dioxide +
+     white_wine_data$density + white_wine_data$pH + white_wine_data$sulphates + white_wine_data$alcohol)
+summary(m3)
+```
+Observamos que no se ve afectado el R-cuadrado ajustado, su valor 0.7464, por lo que podemos eliminar la variable.
+
+
+Quitemos la cantidad libre de acido cítrico **citric.acid**, que tenia en el modelo anterior el mayor p-value **0.784637**, a ver como afecta:
+
+```{r}
+m4<-lm(formula = white_wine_data$quality ~ white_wine_data$fixed.acidity + white_wine_data$volatile.acidity + 
+      + white_wine_data$residual.sugar  + 
+     white_wine_data$free.sulfur.dioxide +
+     white_wine_data$density + white_wine_data$pH + white_wine_data$sulphates + white_wine_data$alcohol)
+summary(m4)
+```
+Observamos que no se ve afectado el R-cuadrado ajustado, su valor 0.7464, por lo que podemos eliminar la variable.
+
+
+Ahora vemos que el modelo que mejor describe la calidad del vino, son:
+-fixed.acidity
+-volatile.acidity
+-residual.sugar
+-free.sulfur.dioxide
+-density
+-pH
+-sulphates
+-alcohol
+
+Dado a que el p-value que queda en cada una de las variables es muy baja, mucho mas bajo al p-value de **0.05**, por lo que podemos dejar de eliminar, basandonos en los p-values.
+
+Veamos si mediante ANOVA podemos eliminar mas variables.
+
+ANOVA nos permite comparar multiples muestras, para analizar su varianza. La hipotesis nula implica que no existen diferencias entre las distintas muestras, mientras que la hipotesis alternativa implica lo contrario, que si hay diferencia entre las muestras. Gracias a ANOVA, podremos ver la variabilidad entre modelos de datos, conjuntos de datos y la variabilidad residual.
+
+
+Probemos a quitarle al modelo la acidez volatil, para ello comparamos el modelo sin acidez volatil, con el modelo completo reducido, obtenido de la fase anterior de los p-value.
+
+Supongamos que tenemos la hipótesis nula de que ambas ecuaciones son iguales, eso quiere decir que si eliminamos una variable, no deberia afectar su resultado.
+
+```{r}
+modeloCompletoReducido<-lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               white_wine_data$pH + 
+                               white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+m1anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               #white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               white_wine_data$pH + 
+                               white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+              ,modeloCompletoReducido)
+m1anova
+```
+
+```{r}
+cbind(m1anova, 'CriticalValue' = qf(1-.05, m1anova[1,1], m1anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m1anova[1,1], m1anova[2,1])
+```
+
+Al ser el valor de **F 291.3216**, mayor que el valor crítico `r qf(1-alpha, m1anova[1,1], m1anova[2,1])`, no podemos eliminar la variable de acidez volatil.
+
+Probemos ahora a eliminar la variable de azucar residual:
+
+```{r}
+m2anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               #white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               white_wine_data$pH + 
+                               white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+              ,modeloCompletoReducido)
+m2anova
+```
+
+```{r}
+cbind(m2anova, 'CriticalValue' = qf(1-.05, m2anova[1,1], m2anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m2anova[1,1], m2anova[2,1])
+```
+
+Al ser el valor de **F 159.46**, mayor que el valor crítico `r qf(1-alpha, m2anova[1,1], m2anova[2,1])`, no podemos eliminar la variable de azucar residual.
+
+
+Probemos ahora a eliminar la variable de cantidad libre de dioxido de azufre:
+
+```{r}
+m3anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               #white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               white_wine_data$pH + 
+                               white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+              ,modeloCompletoReducido)
+m3anova
+```
+
+```{r}
+cbind(m3anova, 'CriticalValue' = qf(1-.05, m3anova[1,1], m3anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m3anova[1,1], m3anova[2,1])
+```
+
+Al ser el valor de **F 40.389**, mayor que el valor crítico `r qf(1-alpha, m3anova[1,1], m3anova[2,1])`, no podemos eliminar la variable free.sulfur.dioxide.
+
+
+Probemos ahora a eliminar la variable de densidad:
+
+```{r}
+m4anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               #white_wine_data$density + 
+                               white_wine_data$pH + 
+                               white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+              ,modeloCompletoReducido)
+m4anova
+```
+
+```{r}
+cbind(m4anova, 'CriticalValue' = qf(1-.05, m4anova[1,1], m4anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m4anova[1,1], m4anova[2,1])
+```
+
+Al ser el valor de **F 103.6121**, mayor que el valor crítico `r qf(1-alpha, m4anova[1,1], m4anova[2,1])`, no podemos eliminar la variable density.
+
+
+Probemos ahora a eliminar la variable de pH:
+
+```{r}
+m5anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               #white_wine_data$pH + 
+                               white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+              ,modeloCompletoReducido)
+m5anova
+```
+
+```{r}
+cbind(m5anova, 'CriticalValue' = qf(1-.05, m5anova[1,1], m5anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m5anova[1,1], m5anova[2,1])
+```
+
+Al ser el valor de **F 71.11436**, mayor que el valor crítico `r qf(1-alpha, m5anova[1,1], m5anova[2,1])`, no podemos eliminar la variable pH.
+
+
+Probemos ahora a eliminar la variable de sulphates:
+
+```{r}
+m6anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               white_wine_data$pH + 
+                               #white_wine_data$sulphates + 
+                               white_wine_data$alcohol, data=white_wine_data)
+              ,modeloCompletoReducido)
+m6anova
+```
+
+```{r}
+cbind(m6anova, 'CriticalValue' = qf(1-.05, m6anova[1,1], m6anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m6anova[1,1], m6anova[2,1])
+```
+
+Al ser el valor de **F 53.38899**, mayor que el valor crítico `r qf(1-alpha, m6anova[1,1], m6anova[2,1])`, no podemos eliminar la variable sulphates.
+
+
+Probemos ahora a eliminar la variable de alcohol:
+
+```{r}
+m7anova<-anova(lm(white_wine_data$quality ~ white_wine_data$fixed.acidity + 
+                               white_wine_data$volatile.acidity + 
+                               white_wine_data$residual.sugar  + 
+                               white_wine_data$free.sulfur.dioxide +
+                               white_wine_data$density + 
+                               white_wine_data$pH + 
+                               white_wine_data$sulphates
+                               #white_wine_data$alcohol
+                              , data=white_wine_data)
+              ,modeloCompletoReducido)
+m7anova
+```
+
+```{r}
+cbind(m7anova, 'CriticalValue' = qf(1-.05, m7anova[1,1], m7anova[2,1]))
+
+alpha = .05
+qf(1-alpha, m7anova[1,1], m7anova[2,1])
+```
+
+Al ser el valor de **F 11.35536**, mayor que el valor crítico `r qf(1-alpha, m7anova[1,1], m7anova[2,1])`, no podemos eliminar la variable alcohol.
+
+Con esto podemos observar que valores de F:
+-Sin volatile.acidity     = **F 291.3216**
+-Sin residual.sugar       = **F 159.46**
+-Sin free.sulfur.dioxide  = **F 40.389**
+-Sin density              = **F 103.6121**
+-Sin pH                   = **F 71.11436**
+-Sin sulphates            = **F 53.38899**
+-Sin alcohol              = **F 11.35536**
+
+Si comparamos los valores de F de estas variables, ninguna ha bajado el valor crítico, por tanto no deberiamos eliminarlos, pero si eliminasemos el valor de alcohol de la ecuación, al ser el menor de todas las F, pero quizas bajaría su valor R-cuadrado ajustado. De modo que lo mantenemos.
+
+
+#### 4.3.c)Contraste Hipotesis
+
+Para hacer el contraste de hipótesis nula, utilizamos el Test de Kolmogorov-Smirnov, una prueba no paramétrica que determinará la bondad del ajuste:
+Asumiendo como hipótesis nula, que los datos estan distribuidos de forma normal, si el p-value < 0.05 que es el valor de alpha, se rechaza la hipótesis nula, concluyendo por tanto que no sigue una distribución normal.
+
+```{r}
+ks.test(x = as.numeric(white_wine_data$quality)
+          ,"pnorm"
+          , mean(as.numeric(white_wine_data$quality))
+          , sd(as.numeric(white_wine_data$quality)))
+```
+
+
+# Sección 5
+## 5.Representación de los resultados a partir de tablas y gráficas.
+
+Además de los gráficos vistos ya en puntos anteriores, quisiera destacar un breve resumen de algún gráfico que nos ayude a entender mejor el resultado.
+
+Podemos observar que la cantidad de alcohol para el 25% de las muestras (linea azul), 50% de las muestras (linea negra), 75% de las muestras (linea roja) y el 90% de las muestras (linea rosa) de cada tipo de calidad, muestran que un incremento de alcohol hace que suba la calidad desde el punto 5. Es decir mayor cantidad de alcohol hace que la calidad suba desde el nivel 5. Hasta llegar a un indice de alcohol entre 12 y 13, que es donde se encuentra la mayor calidad
+
+```{r}
+
+ggplot(aes(x=quality, y = alcohol), data = white_wine_data) + 
+  geom_point(alpha = 0.1, position = position_jitter(h=0), color='green') + 
+  coord_cartesian(xlim = c(2,8)) + coord_cartesian(ylim = c(0.8,1.2)) + coord_trans(y = 'sqrt') + 
+  geom_line(stat = 'summary', fun.y = 'mean') +
+  geom_line(stat = 'summary', fun.y = 'quantile', fun.args=list(probs=0.25), linetype =2, color = 'blue') + 
+  geom_line(stat = 'summary', fun.y = 'quantile', fun.args=list(probs=0.75), linetype =2, color = 'red') +
+  geom_line(stat = 'summary', fun.y = 'quantile', fun.args=list(probs=0.9), linetype =2, color = 'pink') +
+  labs(x = "Calidad", y = "indice de alcohol", title = "Influencia del Indice de alcohol en la calidad del vino")
+
+```
+
+Si lo vemos por categorias, podemos observar la misma conclusión, donde  podemos ver que la calidad del vino para niveles de alcohol 12, donde está la media de valores de dicha calidad, es alta.
+La calidad del vino para el valor medio de alcohol de 9.5 a 10 es un vino de baja calidad.
+La calidad del vino para el valor medio de 10 a 10.5 es un valor de calidad media.
+
+```{r}
+
+ggplot(aes(x=category, y = alcohol), data = white_wine_data) + 
+  geom_point(alpha = 0.1, position = position_jitter(h=0), color='green') + 
+  coord_cartesian(xlim = c(2,8)) + coord_cartesian(ylim = c(0.8,1.2)) + coord_trans(y = 'sqrt') + 
+  geom_line(stat = 'summary', fun.y = 'mean',group = 1) +
+  geom_line(stat = 'summary', fun.y = 'quantile', fun.args=list(probs=0.25), linetype =2, color = 'blue' ,group = 1) + 
+  geom_line(stat = 'summary', fun.y = 'quantile', fun.args=list(probs=0.75), linetype =2, color = 'red',group = 1) +
+  geom_line(stat = 'summary', fun.y = 'quantile', fun.args=list(probs=0.9), linetype =2, color = 'pink',group = 1) +
+  geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'orange') +
+  labs(x = "Categoria", y = "indice de alcohol", 
+              title = "Influencia del Indice de alcohol en la calidad del vino")
+
+```
+
+
+Aqui observamos que el numero de vinos calificados como buenos o malos son la gran minoría, es normal, ya que los vinos normales son los mas accesibles al consumidor medio y se comprará mas que uno bueno, quizas por mayor precio.
+
+```{r}
+print(" Numero de vinos por su categoria:")
+table(white_wine_data$category)
+```
+
+No hay vinos de calidad superior a 9, es decir vinos de puntuación 10, ni tampoco vinos de calidad inferior a 3. Los vinos buenos suelen encontrarse entre 8 y 9, mientras que la mayor parte de los vinos se encuentran entre 5 y 7.9
+```{r}
+print(" Numero de vinos por su calidad:")
+table(white_wine_data$quality)
+```
+
+```{r}
+ggplot(white_wine_data,aes(quality)) + geom_histogram(stat="count") + xlab("Calidad del vino blanco") + ylab("Numero de vinos")
+```
+
+
+Vemos que cuanto mayor alcohol y menor acidez colatil, mejor vino.
+```{r}
+ggplot(data = white_wine_data, aes(x=alcohol, y=volatile.acidity)) +
+  geom_point(aes(col = quality)) +
+  facet_grid(~category) +
+  ggtitle("Calidad Alcohol x volatile.acidity") +
+  xlab("Alcohol") +
+  ylab("volatile.acidity")
+```
+
+Vemos que cuanto menor alcohol y mayor azucar residual, peor vino.
+```{r}
+ggplot(data = white_wine_data, aes(x=alcohol, y=residual.sugar)) +
+  geom_point(aes(col = quality)) +
+  facet_grid(~category) +
+  ggtitle("Calidad Alcohol x residual.sugar") +
+  xlab("Alcohol") +
+  ylab("residual.sugar")
+```
+
+La densidad y el azucar estan relacionados, cuanto mayor densidad, mas azucar contiene.
+```{r}
+ggplot(data = white_wine_data, aes(x=density, y=residual.sugar)) +
+  geom_point(aes(col = quality)) +
+  facet_grid(~category) +
+  ggtitle("Calidad density x residual.sugar") +
+  xlab("density") +
+  ylab("residual.sugar")
+```
+
+Acidez citrica, apenas tiene repercusion el la calidad.
+```{r}
+ggplot(data = white_wine_data, aes(x = factor(quality), y = citric.acid)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,citric.acid),method='lm',color='yellow')+
+      xlab('quality')+ ylab('citric.acid') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs citric.acid')
+```
+
+El azucar, puede influir en la calidad del vino, encontrando menor cantidad de azucar en mejores vinos.
+```{r}
+ggplot(data = white_wine_data, aes(x = factor(quality), y = residual.sugar)) +
+      geom_jitter( alpha = .15) + geom_boxplot(alpha = .05,color = 'red') +
+      geom_smooth(aes(quality-2,residual.sugar),method='lm',color='yellow')+
+      xlab('quality')+ ylab('residual.sugar') +
+      stat_summary(fun.y = "mean", geom = "point",color = "blue",shape = 8,size = 3) +
+      ggtitle('Calidad del vino vs residual.sugar')
+```
+
+# Sección 6
+
+## 6. Resolución del problema. A partir de los resultados obtenidos, ¿cuáles son las conclusiones? ¿Los resultados permiten responder al problema?
+
+Tras determinar las variables que se veian relacionadas con el factor de calidad:
+
+-volatile.acidity
+-residual.sugar
+-free.sulfur.dioxide
+-density            
+-pH
+-sulphates
+-alcohol
+
+Inicialmente pensaba que el citrico podia influir en gran medida en la calidad del vino, incluso que la cantidad de azucar lo hariadotaria de mejor calidad no obstante, he podido observar, que la cantidad de azucar encontrado, se ve relacionado de forma muy débil con la calidad del vino, si que veo que tiene mínimamente una influencia sobre ella, pero se puede despreciar.
+
+Por otra parte, en cuanto a la cantidad de acido cítrico, he podido observar que no influye para nada en la calidad del vino, por lo que podemos despreciarla.
+
+En cuanto al pH, la mayoria de vinos se encuentran en la misma franja de 3 a 3.4, por lo que no es determinante para determinar su calidad.
+
+Finalmente podemos inferir que la calidad del vino se ve influenciado por el indice de alcohol, a mayor indice, mayor calidad, tampoco es pasarse de poner el máximo valor de alcohol, pero si una cantidad que sea entre 10.5 y 13, permitirá encontrar la franja de mejores vinos.
+
+
+# Sección Contribuciones:
+
+**Investigación Previa**: Ramón Serrano Valero
+
+**Redacción Respuestas**: Ramón Serrano Valero
+
+**Desarrollo Código**: Ramón Serrano Valero
+
